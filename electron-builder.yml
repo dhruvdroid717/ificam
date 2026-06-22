@@ -31,9 +31,7 @@ publish:
 
 win:
   icon: build/icon.ico
-  publisherName: Ungyani
-  signAndEditExecutable: false
-  signDlls: false
+  signExecutable: false
   target:
     - target: nsis
       arch:

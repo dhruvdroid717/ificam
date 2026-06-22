@@ -30,3 +30,24 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npm run build:all -- --publish always
+
+      - name: Keep release assets tidy
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $version = node -p "require('./package.json').version"
+          $tag = $env:GITHUB_REF_NAME
+          $assetsToRemove = @(
+            "iFicam-Setup-$version-x64.exe",
+            "iFicam-Setup-$version-x64.exe.blockmap",
+            "iFicam-Setup-$version-ia32.exe",
+            "iFicam-Setup-$version-ia32.exe.blockmap"
+          )
+
+          foreach ($asset in $assetsToRemove) {
+            gh release delete-asset $tag $asset --yes 2>$null
+            if ($LASTEXITCODE -ne 0) {
+              Write-Host "Asset not present or already removed: $asset"
+            }
+          }
