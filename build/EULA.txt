@@ -1,0 +1,33 @@
+﻿# iFicam End User License Agreement
+
+Last updated: June 21, 2026
+
+This End User License Agreement ("Agreement") is a placeholder software license for iFicam by Ungyani. Replace this text with your final legal terms before public distribution.
+
+1. License Grant
+Ungyani grants you a limited, non-exclusive, non-transferable license to install and use iFicam on Windows devices you own or control.
+
+2. Intended Use
+iFicam is designed to turn a phone into a local wireless camera and recorder over your trusted local network. You are responsible for using the software lawfully and respectfully.
+
+3. Privacy and Local Network Use
+iFicam is intended for LAN-only camera streaming. Recordings are saved on the computer running iFicam unless you choose another folder. You are responsible for obtaining consent before recording people, audio, screens, or private spaces.
+
+4. Restrictions
+You may not reverse engineer, redistribute, resell, modify for resale, or use iFicam for unlawful surveillance, harassment, or unauthorized recording.
+
+5. No Warranty
+The software is provided "as is" without warranties of any kind. Ungyani does not guarantee uninterrupted operation, compatibility with every phone, or suitability for every recording workflow.
+
+6. Limitation of Liability
+To the maximum extent permitted by law, Ungyani is not liable for indirect, incidental, special, consequential, or punitive damages arising from your use of iFicam.
+
+7. Updates
+The software may check for updates through GitHub Releases. Installing updates is optional unless required by future distribution terms.
+
+8. Termination
+This license terminates if you violate this Agreement. Upon termination, uninstall iFicam and stop using it.
+
+9. Contact
+Publisher: Ungyani
+Product: iFicam

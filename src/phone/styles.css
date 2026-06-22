@@ -1,0 +1,435 @@
+:root {
+  color-scheme: dark;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  background: #07080a;
+  color: #fff;
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 14% 8%, rgba(255, 255, 255, 0.11), transparent 28%),
+    radial-gradient(circle at 86% 12%, rgba(112, 116, 255, 0.13), transparent 31%),
+    linear-gradient(180deg, #111216 0%, #07080a 55%, #050506 100%);
+}
+
+body {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+main {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  min-height: 100vh;
+  min-height: 100dvh;
+  gap: 12px;
+  padding: calc(env(safe-area-inset-top) + 12px) 14px calc(env(safe-area-inset-bottom) + 12px);
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 58px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.055);
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.28);
+  padding: 8px 10px;
+  backdrop-filter: blur(22px);
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  gap: 10px;
+}
+
+.logo-shell {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 auto;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.62);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 10px 30px rgba(0, 0, 0, 0.35);
+}
+
+.logo-shell img,
+.hero-mark img {
+  width: 78%;
+  height: 78%;
+  object-fit: contain;
+}
+
+.brand strong {
+  display: block;
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
+.brand small {
+  display: block;
+  margin-top: 3px;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.74rem;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.eyebrow {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.48);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  max-width: 46vw;
+  gap: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.26);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 0.78rem;
+  font-weight: 650;
+  padding: 8px 11px;
+  white-space: nowrap;
+}
+
+#statusText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: #fcd34d;
+  box-shadow: 0 0 14px rgba(252, 211, 77, 0.8);
+}
+
+.dot.live {
+  background: #34d399;
+  box-shadow: 0 0 14px rgba(52, 211, 153, 0.85);
+}
+
+.dot.warn {
+  background: #fb923c;
+  box-shadow: 0 0 14px rgba(251, 146, 60, 0.85);
+}
+
+.dot.error {
+  background: #f87171;
+  box-shadow: 0 0 14px rgba(248, 113, 113, 0.85);
+}
+
+.dot.rec {
+  background: #ef4444;
+  box-shadow: 0 0 16px rgba(239, 68, 68, 0.95);
+}
+
+.stage {
+  position: relative;
+  isolation: isolate;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 30px;
+  background: #000;
+  box-shadow: 0 24px 90px rgba(0, 0, 0, 0.45);
+  touch-action: manipulation;
+}
+
+#preview {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: #000;
+}
+
+.focus-ring {
+  position: absolute;
+  z-index: 4;
+  width: 74px;
+  height: 74px;
+  margin-left: -37px;
+  margin-top: -37px;
+  border: 2px solid #67e8f9;
+  border-radius: 999px;
+  pointer-events: none;
+  box-shadow: 0 0 24px rgba(103, 232, 249, 0.5);
+  animation: focus-pulse 850ms ease-out;
+}
+
+@keyframes focus-pulse {
+  from {
+    opacity: 0;
+    transform: scale(1.28);
+  }
+  20% {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.86;
+    transform: scale(1);
+  }
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 28px 22px;
+  background:
+    radial-gradient(circle at 50% 18%, rgba(255, 255, 255, 0.1), transparent 34%),
+    linear-gradient(180deg, rgba(0, 0, 0, 0.16), rgba(0, 0, 0, 0.82));
+}
+
+.overlay.hidden,
+.hidden {
+  display: none !important;
+}
+
+.hero-mark {
+  display: grid;
+  width: 82px;
+  height: 82px;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 26px;
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 22px 70px rgba(0, 0, 0, 0.36);
+  backdrop-filter: blur(18px);
+}
+
+.overlay h1 {
+  max-width: 10ch;
+  margin: 0;
+  color: #fff;
+  font-size: clamp(2.05rem, 10vw, 3.35rem);
+  font-weight: 760;
+  letter-spacing: -0.045em;
+  line-height: 0.96;
+}
+
+.overlay p:not(.eyebrow) {
+  max-width: 32ch;
+  margin: 0;
+  color: rgba(255, 255, 255, 0.66);
+  font-size: 0.98rem;
+  line-height: 1.55;
+}
+
+.phone-controls {
+  display: grid;
+  gap: 10px;
+}
+
+.row,
+.zoom-row {
+  display: grid;
+  gap: 10px;
+}
+
+.row {
+  grid-template-columns: minmax(0, 1fr) 112px;
+}
+
+.zoom-row {
+  grid-template-columns: repeat(4, 1fr);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.045);
+  padding: 5px;
+}
+
+button {
+  border: 0;
+  font: inherit;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.record,
+.secondary,
+.zoom,
+.primary {
+  min-height: 50px;
+  border-radius: 17px;
+  font-weight: 760;
+}
+
+.record,
+.secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+}
+
+.record {
+  color: white;
+  background: linear-gradient(180deg, #ff4f61, #dd2639);
+  box-shadow: 0 16px 38px rgba(239, 68, 68, 0.32);
+}
+
+.record.active {
+  color: #210306;
+  background: linear-gradient(180deg, #fecaca, #fb7185);
+}
+
+.record:disabled,
+.primary:disabled {
+  opacity: 0.58;
+}
+
+.record-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: currentColor;
+  box-shadow: 0 0 16px currentColor;
+}
+
+.secondary {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.button-icon {
+  font-size: 1.15rem;
+  line-height: 1;
+}
+
+.zoom {
+  min-height: 42px;
+  border-radius: 15px;
+  color: rgba(255, 255, 255, 0.72);
+  background: transparent;
+}
+
+.zoom.active {
+  color: #071014;
+  background: #e8f9ff;
+  box-shadow: 0 8px 26px rgba(255, 255, 255, 0.2);
+}
+
+.zoom:disabled {
+  opacity: 0.34;
+}
+
+.dock {
+  display: grid;
+  gap: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 24px;
+  background: rgba(16, 17, 20, 0.92);
+  box-shadow: 0 -18px 60px rgba(0, 0, 0, 0.28);
+  padding: 12px;
+}
+
+.pinfield {
+  display: grid;
+  gap: 7px;
+  width: 100%;
+}
+
+.pinfield span {
+  color: rgba(255, 255, 255, 0.42);
+  font-size: 0.7rem;
+  font-weight: 760;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+.pinfield input {
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 17px;
+  outline: 0;
+  background: rgba(0, 0, 0, 0.32);
+  color: white;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 1.55rem;
+  letter-spacing: 0.42em;
+  padding: 14px 16px;
+  text-align: center;
+}
+
+.pinfield input:focus {
+  border-color: rgba(103, 232, 249, 0.66);
+  box-shadow: 0 0 0 4px rgba(103, 232, 249, 0.12);
+}
+
+.primary {
+  width: 100%;
+  min-height: 54px;
+  color: #071014;
+  background: #f4fbff;
+  box-shadow: 0 16px 42px rgba(255, 255, 255, 0.18);
+  font-size: 1.02rem;
+}
+
+.dock a {
+  justify-self: center;
+  color: rgba(255, 255, 255, 0.52);
+  font-size: 0.84rem;
+  font-weight: 650;
+  text-decoration: none;
+}
+
+@media (max-height: 700px) {
+  main {
+    gap: 9px;
+  }
+
+  .topbar {
+    min-height: 52px;
+  }
+
+  .logo-shell {
+    width: 38px;
+    height: 38px;
+  }
+
+  .overlay {
+    padding: 22px 20px;
+  }
+
+  .hero-mark {
+    width: 66px;
+    height: 66px;
+  }
+}

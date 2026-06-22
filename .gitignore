@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+
+# Build output
+out/
+release/
+
+# Local/generated assets recreated by npm run build
+build/icon.ico
+build/icon.png
+build/installer-header.bmp
+build/installer-sidebar.bmp
+
+# Temporary files and logs
+tmp/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Environment and local editor state
+.env
+.env.*
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

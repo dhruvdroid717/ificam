@@ -1,0 +1,64 @@
+﻿# iFicam electron-builder config.
+# GitHub Releases at dhruvdroid717/ificam are used for in-app updates.
+appId: app.ificam.desktop
+productName: iFicam
+copyright: Copyright 2026 Ungyani
+buildVersion: 21.06.26.1
+afterPack: scripts/after-pack.cjs
+
+directories:
+  output: release
+  buildResources: build
+
+files:
+  - out/**/*
+  - package.json
+
+extraResources:
+  - from: out/phone
+    to: phone
+  - from: build/icon.ico
+    to: icon.ico
+
+asarUnpack:
+  - node_modules/ffmpeg-static/**/*
+
+publish:
+  - provider: github
+    owner: dhruvdroid717
+    repo: ificam
+    releaseType: release
+
+win:
+  icon: build/icon.ico
+  publisherName: Ungyani
+  signAndEditExecutable: false
+  signDlls: false
+  target:
+    - target: nsis
+      arch:
+        - x64
+        - ia32
+
+nsis:
+  artifactName: iFicam-Setup-${version}-${arch}.exe
+  oneClick: false
+  perMachine: false
+  allowElevation: true
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: false
+  createStartMenuShortcut: false
+  shortcutName: iFicam
+  menuCategory: Ungyani
+  installerIcon: build/icon.ico
+  uninstallerIcon: build/icon.ico
+  installerHeaderIcon: build/icon.ico
+  installerSidebar: build/installer-sidebar.bmp
+  uninstallerSidebar: build/installer-sidebar.bmp
+  installerHeader: build/installer-header.bmp
+  license: build/EULA.txt
+  include: build/installer/installer.nsh
+  runAfterFinish: true
+  displayLanguageSelector: false
+  deleteAppDataOnUninstall: false
+  guid: 52073737-a50c-567f-a814-83095e7e9cd8
