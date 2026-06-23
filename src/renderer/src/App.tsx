@@ -157,6 +157,7 @@ export default function App(): JSX.Element {
         const handle = await startRec({
           recordingId: feed.id,
           label: feedLabel(index),
+          includeDeviceLabel: feeds.length > 1,
           video,
           stream: feed.stream,
           rotation,

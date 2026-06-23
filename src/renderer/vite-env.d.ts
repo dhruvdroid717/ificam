@@ -67,7 +67,7 @@ interface Window {
     updateSettings: (patch: Partial<AppSettings>) => Promise<AppSettings>;
     chooseOutputFolder: () => Promise<AppSettings>;
     onSettings: (callback: (settings: AppSettings) => void) => () => void;
-    recStart: (ext: 'mp4' | 'webm', recordingId?: string, label?: string) => Promise<{ outputPath: string }>;
+    recStart: (ext: 'mp4' | 'webm', recordingId?: string, label?: string, includeDeviceLabel?: boolean) => Promise<{ outputPath: string }>;
     recChunk: (chunk: ArrayBuffer, recordingId?: string) => Promise<void>;
     recStop: (options: RecordingStopOptions, recordingId?: string) => Promise<{ filePath: string }>;
     reveal: (filePath: string) => Promise<void>;

@@ -18,7 +18,7 @@ contextBridge.exposeInMainWorld('ificam', {
     ipcRenderer.on('ificam:settings', listener);
     return () => ipcRenderer.removeListener('ificam:settings', listener);
   },
-  recStart: (ext: 'mp4' | 'webm', recordingId?: string, label?: string) => ipcRenderer.invoke('ificam:rec-start', ext, recordingId, label),
+  recStart: (ext: 'mp4' | 'webm', recordingId?: string, label?: string, includeDeviceLabel?: boolean) => ipcRenderer.invoke('ificam:rec-start', ext, recordingId, label, includeDeviceLabel),
   recChunk: (chunk: ArrayBuffer, recordingId?: string) => ipcRenderer.invoke('ificam:rec-chunk', chunk, recordingId),
   recStop: (options: unknown, recordingId?: string) => ipcRenderer.invoke('ificam:rec-stop', options, recordingId) as Promise<{ filePath: string }>,
   reveal: (filePath: string) => ipcRenderer.invoke('ificam:reveal', filePath),

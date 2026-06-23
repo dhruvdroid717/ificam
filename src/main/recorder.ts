@@ -9,6 +9,7 @@ interface StartRecordingOptions {
   ext: 'mp4' | 'webm';
   recordingId?: string;
   label?: string;
+  includeDeviceLabel?: boolean;
   outputFolder?: string;
 }
 
@@ -59,26 +60,53 @@ const resolveFfmpegPath = async (): Promise<string> => {
 
 const fileStamp = (): string => {
   const d = new Date();
-  const p = (n: number): string => String(n).padStart(2, '0');
-  return `iFicam_${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}_${p(d.getHours())}-${p(d.getMinutes())}-${p(d.getSeconds())}`;
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = d.toLocaleString('en-US', { month: 'short' });
+  const year = String(d.getFullYear()).slice(-2);
+  let hour = d.getHours();
+  const minute = String(d.getMinutes()).padStart(2, '0');
+  const ampm = hour >= 12 ? 'PM' : 'AM';
+  hour %= 12;
+  if (hour === 0) hour = 12;
+  return `iFicam - ${day} ${month} ${year} - ${hour}.${minute} ${ampm}`;
 };
 
 const sanitizeNamePart = (value: string): string =>
   value
-    .replace(/[^a-z0-9_-]+/gi, '-')
-    .replace(/^-+|-+$/g, '')
+    .replace(/[^a-z0-9 ]+/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
     .slice(0, 40);
 
-export const startRecording = async ({ ext, recordingId = 'default', label, outputFolder }: StartRecordingOptions): Promise<{ outputPath: string }> => {
+const pathExists = async (path: string): Promise<boolean> => {
+  try {
+    await access(path);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const uniquePath = async (dir: string, base: string, ext: string): Promise<string> => {
+  let candidate = join(dir, `${base}.${ext}`);
+  let counter = 2;
+  while (await pathExists(candidate)) {
+    candidate = join(dir, `${base} (${counter}).${ext}`);
+    counter += 1;
+  }
+  return candidate;
+};
+
+export const startRecording = async ({ ext, recordingId = 'default', label, includeDeviceLabel = false, outputFolder }: StartRecordingOptions): Promise<{ outputPath: string }> => {
   if (sessions.has(recordingId)) {
     throw new Error('A recording is already in progress.');
   }
   const dir = outputFolder?.trim() || defaultOutputDir();
   await mkdir(dir, { recursive: true });
-  const suffix = sanitizeNamePart(label ?? recordingId);
-  const base = suffix ? `${fileStamp()}_${suffix}` : fileStamp();
+  const suffix = includeDeviceLabel ? sanitizeNamePart(label ?? recordingId) : '';
+  const base = suffix ? `${fileStamp()} - ${suffix}` : fileStamp();
   const tempPath = join(dir, `~${base}.${ext}`);
-  const finalPath = join(dir, `${base}.mp4`);
+  const finalPath = await uniquePath(dir, base, 'mp4');
   const writeStream = createWriteStream(tempPath);
   sessions.set(recordingId, { writeStream, tempPath, finalPath });
   return { outputPath: finalPath };

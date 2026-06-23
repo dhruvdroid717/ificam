@@ -1,6 +1,7 @@
 ﻿export interface RecordingOptions {
   recordingId: string;
   label: string;
+  includeDeviceLabel: boolean;
   video: HTMLVideoElement;
   stream: MediaStream;
   rotation: number;
@@ -98,7 +99,7 @@ const fitInside = (
   };
 };
 
-export const startRecording = async ({ recordingId, label, video, stream, rotation, flip, resolution, orientation, adjustments }: RecordingOptions): Promise<RecordingHandle> => {
+export const startRecording = async ({ recordingId, label, includeDeviceLabel, video, stream, rotation, flip, resolution, orientation, adjustments }: RecordingOptions): Promise<RecordingHandle> => {
   await waitForVideoFrame(video);
 
   const normalizedRotation = ((rotation % 360) + 360) % 360;
@@ -166,7 +167,7 @@ export const startRecording = async ({ recordingId, label, video, stream, rotati
   ]);
 
   const mimeType = pickMimeType();
-  await window.ificam.recStart('webm', recordingId, label);
+  await window.ificam.recStart('webm', recordingId, label, includeDeviceLabel);
 
   const recorder = new MediaRecorder(recordingStream, {
     mimeType,
