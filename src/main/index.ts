@@ -164,12 +164,12 @@ app.whenReady().then(async () => {
     return appSettings;
   });
 
-  ipcMain.handle('ificam:rec-start', async (_event, ext: 'mp4' | 'webm') => {
+  ipcMain.handle('ificam:rec-start', async (_event, ext: 'mp4' | 'webm', recordingId?: string, label?: string) => {
     const settings = appSettings ?? (await readSettings());
-    return startRecording({ ext, outputFolder: settings.outputFolder });
+    return startRecording({ ext, recordingId, label, outputFolder: settings.outputFolder });
   });
-  ipcMain.handle('ificam:rec-chunk', (_event, chunk: ArrayBuffer) => writeChunk(Buffer.from(chunk)));
-  ipcMain.handle('ificam:rec-stop', (_event, options) => stopRecording(options));
+  ipcMain.handle('ificam:rec-chunk', (_event, chunk: ArrayBuffer, recordingId?: string) => writeChunk(Buffer.from(chunk), recordingId));
+  ipcMain.handle('ificam:rec-stop', (_event, options, recordingId?: string) => stopRecording(options, recordingId));
   ipcMain.handle('ificam:reveal', (_event, filePath: string) => shell.showItemInFolder(filePath));
   ipcMain.handle('ificam:play', (_event, filePath: string) => shell.openPath(filePath));
 

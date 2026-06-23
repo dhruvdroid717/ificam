@@ -1,6 +1,6 @@
 {
   "name": "ificam",
-  "version": "21.6.31",
+  "version": "21.6.32",
   "description": "iFicam by @Ungyani - turn a phone into a wireless HD webcam and recorder for Windows.",
   "main": "out/main/index.js",
   "author": "Ungyani",

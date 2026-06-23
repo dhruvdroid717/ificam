@@ -50,13 +50,15 @@ const recordingErrorMessage = (error: unknown): string => {
   return message || 'Recording failed to save.';
 };
 
-const openObsPreviewWindow = (stream: MediaStream, style: React.CSSProperties): Window => {
-  const popup = window.open('', 'iFicam OBS Preview', 'popup,width=960,height=540');
+const feedLabel = (index: number): string => `Phone ${index + 1}`;
+
+const openObsPreviewWindow = (stream: MediaStream, style: React.CSSProperties, label: string): Window => {
+  const popup = window.open('', `iFicam OBS Preview - ${label}`, 'popup,width=960,height=540');
   if (!popup) {
     throw new Error('Could not open the OBS preview window.');
   }
 
-  popup.document.title = 'iFicam OBS Preview';
+  popup.document.title = `iFicam OBS Preview - ${label}`;
   popup.document.body.innerHTML = `
     <style>
       html, body {
@@ -104,18 +106,17 @@ export default function App(): JSX.Element {
   const [feeds, setFeeds] = useState<Feed[]>([]);
   const [recorder, setRecorder] = useState<RecorderState>('idle');
   const [elapsed, setElapsed] = useState(0);
-  const [savedFile, setSavedFile] = useState<string | null>(null);
+  const [savedFiles, setSavedFiles] = useState<string[]>([]);
   const [recError, setRecError] = useState<string | null>(null);
   const [rotation, setRotation] = useState(0);
   const [flip, setFlip] = useState(false);
-  const [phoneOrientation, setPhoneOrientation] = useState<PhoneOrientation>('portrait');
   const [updateState, setUpdateState] = useState<UpdateState>({ status: 'idle' });
   const [updateModalOpen, setUpdateModalOpen] = useState(false);
-  const videoRef = useRef<HTMLVideoElement | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
-  const recordingRef = useRef<RecordingHandle | null>(null);
+  const videoRefs = useRef<Map<string, HTMLVideoElement>>(new Map());
+  const recordingRef = useRef<Map<string, RecordingHandle>>(new Map());
   const receiverRef = useRef<Receiver | null>(null);
-  const obsWindowRef = useRef<Window | null>(null);
+  const obsWindowRef = useRef<Map<string, Window>>(new Map());
   const startRecordingRef = useRef<() => void>(() => undefined);
   const stopRecordingRef = useRef<() => void>(() => undefined);
   const primaryFeed = feeds[0] ?? null;
@@ -142,44 +143,68 @@ export default function App(): JSX.Element {
   }, [recorder]);
 
   const startRecording = async (): Promise<void> => {
-    if (!stream || recordingRef.current) return;
+    if (feeds.length === 0 || recordingRef.current.size > 0) return;
     setRecError(null);
-    setSavedFile(null);
+    setSavedFiles([]);
     setElapsed(0);
+    const started = new Map<string, RecordingHandle>();
     try {
-      const video = videoRef.current;
-      if (!video) {
-        throw new Error('Live preview is not ready yet.');
+      for (const [index, feed] of feeds.entries()) {
+        const video = videoRefs.current.get(feed.id);
+        if (!video) {
+          throw new Error(`${feedLabel(index)} preview is not ready yet.`);
+        }
+        const handle = await startRec({
+          recordingId: feed.id,
+          label: feedLabel(index),
+          video,
+          stream: feed.stream,
+          rotation,
+          flip,
+          resolution: settings.recordingResolution,
+          orientation: feed.orientation,
+          adjustments: settings.adjustments,
+        });
+        started.set(feed.id, handle);
       }
-      recordingRef.current = await startRec({ video, stream, rotation, flip, resolution: settings.recordingResolution, orientation: phoneOrientation, adjustments: settings.adjustments });
+      recordingRef.current = started;
       receiverRef.current?.sendControl({ type: 'cmd', action: 'record.started' });
       setRecorder('recording');
     } catch (error) {
+      for (const handle of started.values()) {
+        void handle.stop().catch(() => undefined);
+      }
+      recordingRef.current = new Map();
       setRecError(error instanceof Error ? error.message : 'Could not start recording.');
     }
   };
 
   const togglePause = (): void => {
-    const handle = recordingRef.current;
-    if (!handle) return;
+    const handles = Array.from(recordingRef.current.values());
+    if (handles.length === 0) return;
     setRecorder((r) => {
       if (r === 'recording') {
-        handle.pause();
+        for (const handle of handles) handle.pause();
         return 'paused';
       }
-      handle.resume();
+      for (const handle of handles) handle.resume();
       return 'recording';
     });
   };
 
   const stopRecording = async (): Promise<void> => {
-    const handle = recordingRef.current;
-    recordingRef.current = null;
-    if (!handle) return;
+    const handles = Array.from(recordingRef.current.entries());
+    recordingRef.current = new Map();
+    if (handles.length === 0) return;
     setRecorder('saving');
     try {
-      const filePath = await handle.stop();
-      setSavedFile(filePath);
+      const results = await Promise.allSettled(handles.map(async ([, handle]) => handle.stop()));
+      const files = results
+        .filter((result): result is PromiseFulfilledResult<string> => result.status === 'fulfilled')
+        .map((result) => result.value);
+      const errors = results.filter((result): result is PromiseRejectedResult => result.status === 'rejected');
+      if (files.length > 0) setSavedFiles(files);
+      if (errors.length > 0) setRecError(recordingErrorMessage(errors[0].reason));
       receiverRef.current?.sendControl({ type: 'cmd', action: 'record.stopped' });
     } catch (error) {
       setRecError(recordingErrorMessage(error));
@@ -209,25 +234,33 @@ export default function App(): JSX.Element {
     setSettings(await window.ificam.updateSettings({ adjustments }));
   };
 
-  const openObsPreview = (): void => {
-    if (!stream) return;
+  const openObsPreviews = (): void => {
+    if (feeds.length === 0) return;
     try {
-      obsWindowRef.current = openObsPreviewWindow(stream, videoStyle);
+      feeds.forEach((feed, index) => {
+        obsWindowRef.current.set(feed.id, openObsPreviewWindow(feed.stream, videoStyle, feedLabel(index)));
+      });
     } catch (error) {
       setRecError(error instanceof Error ? error.message : 'Could not open OBS preview.');
     }
   };
 
   useEffect(() => {
-    const popup = obsWindowRef.current;
-    if (!popup || popup.closed) return;
-    const video = popup.document.querySelector('video');
-    if (!video) return;
-    video.srcObject = stream;
-    video.style.transform = String(videoStyle.transform ?? '');
-    video.style.filter = String(videoStyle.filter ?? '');
-    if (stream) void video.play().catch(() => undefined);
-  }, [stream, videoStyle.transform, videoStyle.filter]);
+    const liveIds = new Set(feeds.map((feed) => feed.id));
+    for (const [id, popup] of obsWindowRef.current.entries()) {
+      if (!liveIds.has(id) || popup.closed) {
+        obsWindowRef.current.delete(id);
+        continue;
+      }
+      const feed = feeds.find((item) => item.id === id);
+      const video = popup.document.querySelector('video');
+      if (!feed || !video) continue;
+      video.srcObject = feed.stream;
+      video.style.transform = String(videoStyle.transform ?? '');
+      video.style.filter = String(videoStyle.filter ?? '');
+      void video.play().catch(() => undefined);
+    }
+  }, [feeds, videoStyle.transform, videoStyle.filter]);
 
   const resetAdjustments = async (): Promise<void> => {
     const adjustments = { ...DEFAULT_ADJUSTMENTS };
@@ -303,7 +336,6 @@ export default function App(): JSX.Element {
         });
       },
       onPhoneOrientation: (peerId, orientation) => {
-        setPhoneOrientation(orientation);
         setFeeds((current) => current.map((feed) => feed.id === peerId ? { ...feed, orientation } : feed));
       },
       onPhoneCommand: (_peerId, action) => {
@@ -406,7 +438,8 @@ export default function App(): JSX.Element {
                     feed={feed}
                     style={videoStyle}
                     refCallback={(node) => {
-                      if (index === 0) videoRef.current = node;
+                      if (node) videoRefs.current.set(feed.id, node);
+                      else videoRefs.current.delete(feed.id);
                     }}
                   />
                 ))}
@@ -416,9 +449,9 @@ export default function App(): JSX.Element {
               <div className="absolute right-5 top-5 z-10 flex gap-2">
                 <button
                   className="grid h-10 w-10 place-items-center rounded-2xl border border-white/10 bg-black/35 text-white/72 backdrop-blur-md transition hover:text-white"
-                  onClick={openObsPreview}
-                  aria-label="Open OBS preview window"
-                  title="Open clean OBS preview window"
+                  onClick={openObsPreviews}
+                  aria-label="Open OBS preview windows"
+                  title="Open clean OBS preview windows"
                 >
                   <MonitorUp className="h-5 w-5" />
                 </button>
@@ -480,13 +513,13 @@ export default function App(): JSX.Element {
               onStop={stopRecording}
             />
 
-            {savedFile && (
+            {savedFiles.length > 0 && (
               <Toast
-                message="Recording saved"
-                detail={savedFile}
-                onReveal={() => window.ificam.reveal(savedFile)}
-                onPlay={() => window.ificam.play(savedFile)}
-                onClose={() => setSavedFile(null)}
+                message={savedFiles.length === 1 ? 'Recording saved' : 'Recordings saved'}
+                detail={savedFiles.length === 1 ? savedFiles[0] : `${savedFiles.length} MP4 files saved separately`}
+                onReveal={() => window.ificam.reveal(savedFiles[0])}
+                onPlay={savedFiles.length === 1 ? () => window.ificam.play(savedFiles[0]) : undefined}
+                onClose={() => setSavedFiles([])}
               />
             )}
             {recError && <Toast message="Recording error" detail={recError} error onClose={() => setRecError(null)} />}

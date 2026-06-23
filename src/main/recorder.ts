@@ -7,6 +7,8 @@ import ffmpegPath from 'ffmpeg-static';
 
 interface StartRecordingOptions {
   ext: 'mp4' | 'webm';
+  recordingId?: string;
+  label?: string;
   outputFolder?: string;
 }
 
@@ -27,9 +29,13 @@ export interface StopRecordingOptions {
   adjustments?: VideoAdjustments;
 }
 
-let writeStream: WriteStream | null = null;
-let tempPath: string | null = null;
-let finalPath: string | null = null;
+interface RecordingSession {
+  writeStream: WriteStream;
+  tempPath: string;
+  finalPath: string;
+}
+
+const sessions = new Map<string, RecordingSession>();
 
 const defaultOutputDir = (): string => join(app.getPath('videos'), 'iFicam');
 
@@ -57,44 +63,49 @@ const fileStamp = (): string => {
   return `iFicam_${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}_${p(d.getHours())}-${p(d.getMinutes())}-${p(d.getSeconds())}`;
 };
 
-export const startRecording = async ({ ext, outputFolder }: StartRecordingOptions): Promise<{ outputPath: string }> => {
-  if (writeStream) {
+const sanitizeNamePart = (value: string): string =>
+  value
+    .replace(/[^a-z0-9_-]+/gi, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 40);
+
+export const startRecording = async ({ ext, recordingId = 'default', label, outputFolder }: StartRecordingOptions): Promise<{ outputPath: string }> => {
+  if (sessions.has(recordingId)) {
     throw new Error('A recording is already in progress.');
   }
   const dir = outputFolder?.trim() || defaultOutputDir();
   await mkdir(dir, { recursive: true });
-  const base = fileStamp();
-  tempPath = join(dir, `~${base}.${ext}`);
-  finalPath = join(dir, `${base}.mp4`);
-  writeStream = createWriteStream(tempPath);
+  const suffix = sanitizeNamePart(label ?? recordingId);
+  const base = suffix ? `${fileStamp()}_${suffix}` : fileStamp();
+  const tempPath = join(dir, `~${base}.${ext}`);
+  const finalPath = join(dir, `${base}.mp4`);
+  const writeStream = createWriteStream(tempPath);
+  sessions.set(recordingId, { writeStream, tempPath, finalPath });
   return { outputPath: finalPath };
 };
 
-export const writeChunk = (chunk: Buffer): Promise<void> => {
+export const writeChunk = (chunk: Buffer, recordingId = 'default'): Promise<void> => {
   return new Promise((resolve, reject) => {
-    if (!writeStream) {
+    const session = sessions.get(recordingId);
+    if (!session) {
       resolve();
       return;
     }
-    writeStream.write(chunk, (err) => (err ? reject(err) : resolve()));
+    session.writeStream.write(chunk, (err) => (err ? reject(err) : resolve()));
   });
 };
 
-export const stopRecording = async (options: StopRecordingOptions = {}): Promise<{ filePath: string }> => {
-  if (!writeStream || !tempPath || !finalPath) {
+export const stopRecording = async (options: StopRecordingOptions = {}, recordingId = 'default'): Promise<{ filePath: string }> => {
+  const session = sessions.get(recordingId);
+  if (!session) {
     throw new Error('No active recording to stop.');
   }
-  const input = tempPath;
-  const output = finalPath;
-  const stream = writeStream;
-  writeStream = null;
-  tempPath = null;
-  finalPath = null;
+  sessions.delete(recordingId);
 
-  await new Promise<void>((resolve) => stream.end(resolve));
-  await remuxToMp4(input, output, options);
-  await rm(input, { force: true });
-  return { filePath: output };
+  await new Promise<void>((resolve) => session.writeStream.end(resolve));
+  await remuxToMp4(session.tempPath, session.finalPath, options);
+  await rm(session.tempPath, { force: true });
+  return { filePath: session.finalPath };
 };
 
 const runFfmpeg = async (args: string[]): Promise<void> => {

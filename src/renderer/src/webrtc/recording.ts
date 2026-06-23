@@ -1,4 +1,6 @@
 ﻿export interface RecordingOptions {
+  recordingId: string;
+  label: string;
   video: HTMLVideoElement;
   stream: MediaStream;
   rotation: number;
@@ -96,7 +98,7 @@ const fitInside = (
   };
 };
 
-export const startRecording = async ({ video, stream, rotation, flip, resolution, orientation, adjustments }: RecordingOptions): Promise<RecordingHandle> => {
+export const startRecording = async ({ recordingId, label, video, stream, rotation, flip, resolution, orientation, adjustments }: RecordingOptions): Promise<RecordingHandle> => {
   await waitForVideoFrame(video);
 
   const normalizedRotation = ((rotation % 360) + 360) % 360;
@@ -164,7 +166,7 @@ export const startRecording = async ({ video, stream, rotation, flip, resolution
   ]);
 
   const mimeType = pickMimeType();
-  await window.ificam.recStart('webm');
+  await window.ificam.recStart('webm', recordingId, label);
 
   const recorder = new MediaRecorder(recordingStream, {
     mimeType,
@@ -177,7 +179,7 @@ export const startRecording = async ({ video, stream, rotation, flip, resolution
     if (!event.data || event.data.size === 0) return;
     pump = pump.then(async () => {
       const buffer = await event.data.arrayBuffer();
-      await window.ificam.recChunk(buffer);
+      await window.ificam.recChunk(buffer, recordingId);
     });
   };
 
@@ -200,7 +202,7 @@ export const startRecording = async ({ video, stream, rotation, flip, resolution
           targetWidth: target?.width ?? null,
           targetHeight: target?.height ?? null,
           adjustments,
-        }))
+        }, recordingId))
         .then(({ filePath }) => resolve(filePath))
         .catch(reject);
     };
