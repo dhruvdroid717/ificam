@@ -28,10 +28,24 @@ const friendlyUpdateError = (error: unknown): string => {
   return 'Could not check for updates right now. Please try again in a few minutes.';
 };
 
+const stripReleaseMarkup = (value: string | null | undefined): string =>
+  (value ?? '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+
 const notesToText = (notes: UpdateInfo['releaseNotes']): string => {
   if (!notes) return 'No changelog was provided for this release.';
-  if (typeof notes === 'string') return notes;
-  return notes.map((entry) => `${entry.version}\n${entry.note}`).join('\n\n');
+  if (typeof notes === 'string') return stripReleaseMarkup(notes);
+  return notes.map((entry) => `${entry.version}\n${stripReleaseMarkup(entry.note)}`).join('\n\n').trim();
 };
 
 const publish = (window: BrowserWindow | null, state: UpdateBridgeState): void => {

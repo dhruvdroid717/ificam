@@ -51,6 +51,26 @@ const createWindow = (): void => {
   });
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
+    if (details.url === 'about:blank') {
+      return {
+        action: 'allow',
+        overrideBrowserWindowOptions: {
+          width: 960,
+          height: 540,
+          minWidth: 360,
+          minHeight: 240,
+          backgroundColor: '#000000',
+          title: 'iFicam OBS Preview',
+          autoHideMenuBar: true,
+          alwaysOnTop: true,
+          webPreferences: {
+            sandbox: true,
+            contextIsolation: true,
+            nodeIntegration: false,
+          },
+        },
+      };
+    }
     shell.openExternal(details.url);
     return { action: 'deny' };
   });

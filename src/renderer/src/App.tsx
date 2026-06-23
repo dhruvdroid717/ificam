@@ -1,5 +1,5 @@
 ﻿import React, { useEffect, useRef, useState } from 'react';
-import { Aperture, Bell, ChevronDown, CircleDot, Download, FlipHorizontal2, FolderOpen, Instagram, PackageCheck, Play, Power, RefreshCw, RotateCcw, RotateCw, Settings, SlidersHorizontal, X } from 'lucide-react';
+import { Aperture, Bell, ChevronDown, CircleDot, Download, FlipHorizontal2, FolderOpen, Instagram, MonitorUp, PackageCheck, Play, Power, RefreshCw, RotateCcw, RotateCw, Settings, SlidersHorizontal, X } from 'lucide-react';
 import { ControlBar } from './components/ControlBar';
 import type { RecorderState } from './components/ControlBar';
 import { SetupPanel } from './components/SetupPanel';
@@ -50,6 +50,42 @@ const recordingErrorMessage = (error: unknown): string => {
   return message || 'Recording failed to save.';
 };
 
+const openObsPreviewWindow = (stream: MediaStream, style: React.CSSProperties): Window => {
+  const popup = window.open('', 'iFicam OBS Preview', 'popup,width=960,height=540');
+  if (!popup) {
+    throw new Error('Could not open the OBS preview window.');
+  }
+
+  popup.document.title = 'iFicam OBS Preview';
+  popup.document.body.innerHTML = `
+    <style>
+      html, body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+        background: #000;
+      }
+      video {
+        width: 100vw;
+        height: 100vh;
+        object-fit: contain;
+        background: #000;
+      }
+    </style>
+    <video autoplay muted playsinline></video>
+  `;
+
+  const video = popup.document.querySelector('video');
+  if (!video) return popup;
+  video.srcObject = stream;
+  video.style.transform = String(style.transform ?? '');
+  video.style.filter = String(style.filter ?? '');
+  void video.play().catch(() => undefined);
+  popup.focus();
+  return popup;
+};
+
 interface Feed {
   id: string;
   stream: MediaStream;
@@ -79,6 +115,7 @@ export default function App(): JSX.Element {
   const stageRef = useRef<HTMLDivElement | null>(null);
   const recordingRef = useRef<RecordingHandle | null>(null);
   const receiverRef = useRef<Receiver | null>(null);
+  const obsWindowRef = useRef<Window | null>(null);
   const startRecordingRef = useRef<() => void>(() => undefined);
   const stopRecordingRef = useRef<() => void>(() => undefined);
   const primaryFeed = feeds[0] ?? null;
@@ -171,6 +208,26 @@ export default function App(): JSX.Element {
     setSettings({ ...settings, adjustments });
     setSettings(await window.ificam.updateSettings({ adjustments }));
   };
+
+  const openObsPreview = (): void => {
+    if (!stream) return;
+    try {
+      obsWindowRef.current = openObsPreviewWindow(stream, videoStyle);
+    } catch (error) {
+      setRecError(error instanceof Error ? error.message : 'Could not open OBS preview.');
+    }
+  };
+
+  useEffect(() => {
+    const popup = obsWindowRef.current;
+    if (!popup || popup.closed) return;
+    const video = popup.document.querySelector('video');
+    if (!video) return;
+    video.srcObject = stream;
+    video.style.transform = String(videoStyle.transform ?? '');
+    video.style.filter = String(videoStyle.filter ?? '');
+    if (stream) void video.play().catch(() => undefined);
+  }, [stream, videoStyle.transform, videoStyle.filter]);
 
   const resetAdjustments = async (): Promise<void> => {
     const adjustments = { ...DEFAULT_ADJUSTMENTS };
@@ -358,6 +415,14 @@ export default function App(): JSX.Element {
             {hasStream && (
               <div className="absolute right-5 top-5 z-10 flex gap-2">
                 <button
+                  className="grid h-10 w-10 place-items-center rounded-2xl border border-white/10 bg-black/35 text-white/72 backdrop-blur-md transition hover:text-white"
+                  onClick={openObsPreview}
+                  aria-label="Open OBS preview window"
+                  title="Open clean OBS preview window"
+                >
+                  <MonitorUp className="h-5 w-5" />
+                </button>
+                <button
                   className={`grid h-10 w-10 place-items-center rounded-2xl border backdrop-blur-md transition ${
                     flip ? 'border-brand-cyan/50 bg-brand-cyan/15 text-brand-cyan' : 'border-white/10 bg-black/35 text-white/72 hover:text-white'
                   }`}
@@ -517,7 +582,7 @@ function UpdateModal({
         </div>
 
         <div className="mt-5 max-h-44 overflow-y-auto rounded-2xl border border-white/8 bg-black/24 p-4 text-sm leading-6 text-white/64">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-white/36">{state.status === 'error' ? 'Status' : 'Changelog'}</p>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-white/36">{state.status === 'error' ? 'Status' : 'Update Version'}</p>
           <pre className="whitespace-pre-wrap font-sans">{notes}</pre>
         </div>
 
