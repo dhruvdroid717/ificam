@@ -1,5 +1,6 @@
 ﻿import React, { useEffect, useRef, useState } from 'react';
-import { Aperture, Bell, ChevronDown, CircleDot, Download, FlipHorizontal2, FolderOpen, Instagram, MonitorUp, PackageCheck, Play, Power, RefreshCw, RotateCcw, RotateCw, Settings, SlidersHorizontal, X } from 'lucide-react';
+import Hls from 'hls.js';
+import { Aperture, Bell, ChevronDown, CircleDot, Download, FlipHorizontal2, FolderOpen, Instagram, MonitorUp, PackageCheck, Pause, Play, Power, RefreshCw, RotateCcw, RotateCw, Settings, SlidersHorizontal, TvMinimalPlay, Volume2, VolumeX, X } from 'lucide-react';
 import { ControlBar } from './components/ControlBar';
 import type { RecorderState } from './components/ControlBar';
 import { SetupPanel } from './components/SetupPanel';
@@ -59,28 +60,40 @@ const openObsPreviewWindow = (stream: MediaStream, style: React.CSSProperties, l
   }
 
   popup.document.title = `iFicam OBS Preview - ${label}`;
-  popup.document.body.innerHTML = `
-    <style>
-      html, body {
-        width: 100%;
-        height: 100%;
-        margin: 0;
-        overflow: hidden;
-        background: #000;
-      }
-      video {
-        width: 100vw;
-        height: 100vh;
-        object-fit: contain;
-        background: #000;
-      }
-    </style>
-    <video autoplay muted playsinline></video>
-  `;
+  if (!popup.document.querySelector('[data-ificam-obs-root]')) {
+    popup.document.body.innerHTML = `
+      <style>
+        html, body {
+          width: 100%;
+          height: 100%;
+          margin: 0;
+          overflow: hidden;
+          background: #000;
+        }
+        body {
+          display: grid;
+          place-items: center;
+        }
+        [data-ificam-obs-root] {
+          width: 100vw;
+          height: 100vh;
+          overflow: hidden;
+          background: #000;
+        }
+        video {
+          width: 100%;
+          height: 100%;
+          object-fit: contain;
+          background: #000;
+        }
+      </style>
+      <div data-ificam-obs-root><video autoplay muted playsinline></video></div>
+    `;
+  }
 
   const video = popup.document.querySelector('video');
   if (!video) return popup;
-  video.srcObject = stream;
+  if (video.srcObject !== stream) video.srcObject = stream;
   video.style.transform = String(style.transform ?? '');
   video.style.filter = String(style.filter ?? '');
   void video.play().catch(() => undefined);
@@ -112,6 +125,7 @@ export default function App(): JSX.Element {
   const [flip, setFlip] = useState(false);
   const [updateState, setUpdateState] = useState<UpdateState>({ status: 'idle' });
   const [updateModalOpen, setUpdateModalOpen] = useState(false);
+  const [appMode, setAppMode] = useState<'camera' | 'hls'>('camera');
   const stageRef = useRef<HTMLDivElement | null>(null);
   const videoRefs = useRef<Map<string, HTMLVideoElement>>(new Map());
   const recordingRef = useRef<Map<string, RecordingHandle>>(new Map());
@@ -199,13 +213,19 @@ export default function App(): JSX.Element {
     if (handles.length === 0) return;
     setRecorder('saving');
     try {
-      const results = await Promise.allSettled(handles.map(async ([, handle]) => handle.stop()));
-      const files = results
-        .filter((result): result is PromiseFulfilledResult<string> => result.status === 'fulfilled')
-        .map((result) => result.value);
-      const errors = results.filter((result): result is PromiseRejectedResult => result.status === 'rejected');
+      receiverRef.current?.sendControl({ type: 'cmd', action: 'record.saving' });
+      const files: string[] = [];
+      const errors: unknown[] = [];
+      const pendingStops = handles.map(([, handle]) => handle.stop());
+      for (const pendingStop of pendingStops) {
+        try {
+          files.push(await pendingStop);
+        } catch (error) {
+          errors.push(error);
+        }
+      }
       if (files.length > 0) setSavedFiles(files);
-      if (errors.length > 0) setRecError(recordingErrorMessage(errors[0].reason));
+      if (errors.length > 0) setRecError(recordingErrorMessage(errors[0]));
       receiverRef.current?.sendControl({ type: 'cmd', action: 'record.stopped' });
     } catch (error) {
       setRecError(recordingErrorMessage(error));
@@ -256,7 +276,7 @@ export default function App(): JSX.Element {
       const feed = feeds.find((item) => item.id === id);
       const video = popup.document.querySelector('video');
       if (!feed || !video) continue;
-      video.srcObject = feed.stream;
+      if (video.srcObject !== feed.stream) video.srcObject = feed.stream;
       video.style.transform = String(videoStyle.transform ?? '');
       video.style.filter = String(videoStyle.filter ?? '');
       void video.play().catch(() => undefined);
@@ -278,6 +298,7 @@ export default function App(): JSX.Element {
   stopRecordingRef.current = () => void stopRecording();
 
   const isRecording = recorder !== 'idle';
+  const cameraMode = appMode === 'camera';
 
   useEffect(() => {
     if (!window.ificam) {
@@ -402,6 +423,18 @@ export default function App(): JSX.Element {
                 {status}
               </div>
               <button
+                onClick={() => setAppMode((mode) => (mode === 'hls' ? 'camera' : 'hls'))}
+                aria-label={appMode === 'hls' ? 'Return to camera mode' : 'Open HLS playlist player'}
+                title={appMode === 'hls' ? 'Return to camera mode' : 'Open HLS playlist player'}
+                className={`grid h-10 w-10 place-items-center rounded-full border transition ${
+                  appMode === 'hls'
+                    ? 'border-brand-cyan/45 bg-brand-cyan/14 text-brand-cyan'
+                    : 'border-white/[0.08] bg-white/[0.055] text-white/76 hover:border-white/18 hover:bg-white/[0.11] hover:text-white'
+                }`}
+              >
+                <TvMinimalPlay className="h-5 w-5" />
+              </button>
+              <button
                 onClick={openUpdateCheck}
                 aria-label="Check for updates"
                 title="Check for updates"
@@ -431,7 +464,15 @@ export default function App(): JSX.Element {
               isRecording ? 'border-red-500/70 shadow-[0_0_0_2px_rgba(239,68,68,0.25),0_0_60px_rgba(239,68,68,0.18)_inset]' : 'border-line'
             }`}
           >
-            {hasStream && (
+            {appMode === 'hls' && (
+              <HlsPlayer
+                settings={settings}
+                onSaved={(file) => setSavedFiles([file])}
+                onError={(message) => setRecError(message)}
+              />
+            )}
+
+            {cameraMode && hasStream && (
               <div className={`absolute inset-0 z-0 grid gap-3 p-3 ${feeds.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
                 {feeds.map((feed, index) => (
                   <LiveFeed
@@ -446,7 +487,7 @@ export default function App(): JSX.Element {
                 ))}
               </div>
             )}
-            {hasStream && (
+            {cameraMode && hasStream && (
               <div className="absolute right-5 top-5 z-10 flex gap-2">
                 <button
                   className="grid h-10 w-10 place-items-center rounded-2xl border border-white/10 bg-black/35 text-white/72 backdrop-blur-md transition hover:text-white"
@@ -477,7 +518,7 @@ export default function App(): JSX.Element {
               </div>
             )}
 
-            {!hasStream && (
+            {cameraMode && !hasStream && (
               <div className="absolute inset-0 grid place-items-center bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.08),transparent_34%),linear-gradient(145deg,rgba(255,255,255,0.045),rgba(255,255,255,0.01))]">
                 <div className="max-w-lg px-6 text-center">
                   <div className="relative mx-auto mb-7 grid h-32 w-32 place-items-center">
@@ -495,7 +536,7 @@ export default function App(): JSX.Element {
               </div>
             )}
 
-            <div className="absolute left-5 top-5 z-10 flex flex-wrap items-stretch gap-2">
+            {cameraMode && <div className="absolute left-5 top-5 z-10 flex flex-wrap items-stretch gap-2">
               {statusItems.map((item) => (
                 <div key={item.label} className="rounded-2xl border border-white/10 bg-black/35 px-3 py-2 backdrop-blur-md">
                   <p className="text-[11px] uppercase text-white/38">{item.label}</p>
@@ -503,16 +544,16 @@ export default function App(): JSX.Element {
                 </div>
               ))}
               <AudioMeter stream={stream} />
-            </div>
+            </div>}
 
-            <ControlBar
+            {cameraMode && <ControlBar
               state={recorder}
               elapsed={elapsed}
               canRecord={hasStream}
               onRecord={startRecording}
               onTogglePause={togglePause}
               onStop={stopRecording}
-            />
+            />}
 
             {savedFiles.length > 0 && (
               <Toast
@@ -527,7 +568,7 @@ export default function App(): JSX.Element {
           </div>
         </section>
 
-        <aside className="scrollbar-none relative z-30 flex w-[360px] flex-col overflow-y-auto border-l border-white/[0.075] bg-[#101114] p-5 shadow-[-24px_0_70px_rgba(0,0,0,0.42)]">
+        {cameraMode && <aside className="scrollbar-none relative z-30 flex w-[360px] flex-col overflow-y-auto border-l border-white/[0.075] bg-[#101114] p-5 shadow-[-24px_0_70px_rgba(0,0,0,0.42)]">
           <SetupPanel state={serverState} />
           <SettingsPanel settings={settings} onChooseOutputFolder={chooseOutputFolder} onResolutionChange={updateResolution} />
           <AdjustPanel adjustments={settings.adjustments} onAdjust={updateAdjustment} onReset={resetAdjustments} />
@@ -540,7 +581,7 @@ export default function App(): JSX.Element {
               Recordings are saved as Mp4 (H.264 + AAC) and not on your phone.
             </p>
           </div>
-        </aside>
+        </aside>}
       </div>
     </main>
   );
@@ -654,6 +695,234 @@ function UpdateModal({
               {state.status === 'downloading' ? 'Downloading' : 'Update Now'}
             </button>
           )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function HlsPlayer({
+  settings,
+  onSaved,
+  onError,
+}: {
+  settings: AppSettings;
+  onSaved: (file: string) => void;
+  onError: (message: string) => void;
+}): JSX.Element {
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const handleRef = useRef<RecordingHandle | null>(null);
+  const [url, setUrl] = useState('');
+  const [loadedUrl, setLoadedUrl] = useState('');
+  const [playing, setPlaying] = useState(false);
+  const [muted, setMuted] = useState(false);
+  const [duration, setDuration] = useState(0);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [state, setState] = useState<RecorderState>('idle');
+  const [elapsed, setElapsed] = useState(0);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !loadedUrl) return;
+
+    let hls: Hls | null = null;
+    const source = loadedUrl.trim();
+    if (Hls.isSupported()) {
+      hls = new Hls({ lowLatencyMode: true, backBufferLength: 30 });
+      hls.loadSource(source);
+      hls.attachMedia(video);
+    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+      video.src = source;
+    } else {
+      onError('This HLS stream could not be played on this device.');
+    }
+
+    return () => {
+      if (hls) hls.destroy();
+      video.removeAttribute('src');
+      video.load();
+    };
+  }, [loadedUrl]);
+
+  useEffect(() => {
+    if (state !== 'recording') return;
+    const id = window.setInterval(() => setElapsed((value) => value + 1), 1000);
+    return () => window.clearInterval(id);
+  }, [state]);
+
+  const load = (event: React.FormEvent): void => {
+    event.preventDefault();
+    const next = url.trim();
+    if (!next) return;
+    setLoadedUrl(next);
+    setCurrentTime(0);
+    setDuration(0);
+  };
+
+  const togglePlay = async (): Promise<void> => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (video.paused) {
+      await video.play().catch(() => onError('Press play again after the stream finishes loading.'));
+    } else {
+      video.pause();
+    }
+  };
+
+  const startHlsRecording = async (): Promise<void> => {
+    const video = videoRef.current;
+    if (!video || handleRef.current || !loadedUrl) return;
+    const capture = (video as HTMLVideoElement & { captureStream?: () => MediaStream }).captureStream;
+    if (!capture) {
+      onError('This player cannot expose the stream for recording on this device.');
+      return;
+    }
+
+    try {
+      const stream = capture.call(video);
+      const handle = await startRec({
+        recordingId: 'hls-player',
+        label: 'HLS Player',
+        includeDeviceLabel: false,
+        video,
+        stream,
+        rotation: 0,
+        flip: false,
+        resolution: settings.recordingResolution,
+        orientation: video.videoHeight > video.videoWidth ? 'portrait' : 'landscape',
+        adjustments: settings.adjustments,
+      });
+      handleRef.current = handle;
+      setElapsed(0);
+      setState('recording');
+    } catch (error) {
+      onError(recordingErrorMessage(error));
+    }
+  };
+
+  const stopHlsRecording = async (): Promise<void> => {
+    const handle = handleRef.current;
+    if (!handle) return;
+    handleRef.current = null;
+    setState('saving');
+    try {
+      onSaved(await handle.stop());
+    } catch (error) {
+      onError(recordingErrorMessage(error));
+    } finally {
+      setState('idle');
+      setElapsed(0);
+    }
+  };
+
+  const seek = (event: React.ChangeEvent<HTMLInputElement>): void => {
+    const video = videoRef.current;
+    if (!video) return;
+    const next = Number(event.target.value);
+    video.currentTime = next;
+    setCurrentTime(next);
+  };
+
+  const time = (seconds: number): string => {
+    if (!Number.isFinite(seconds) || seconds <= 0) return '00:00';
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  };
+
+  const recordingText = state === 'saving' ? 'Saving video' : state === 'recording' ? time(elapsed) : 'Record';
+
+  return (
+    <div className="absolute inset-0 flex flex-col bg-[#050506]">
+      <div className="flex items-center justify-between gap-4 border-b border-white/[0.075] bg-white/[0.035] px-5 py-4">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-cyan/80">HLS Player</p>
+          <h2 className="mt-1 text-2xl font-semibold tracking-[-0.035em] text-white">M3U8 playlist preview</h2>
+        </div>
+        <form className="flex min-w-[420px] max-w-2xl flex-1 gap-2" onSubmit={load}>
+          <input
+            className="h-11 min-w-0 flex-1 rounded-2xl border border-white/10 bg-black/34 px-4 text-sm text-white/84 outline-none transition placeholder:text-white/30 focus:border-brand-cyan/50"
+            value={url}
+            onChange={(event) => setUrl(event.target.value)}
+            placeholder="Paste .m3u8 / HLS playlist URL"
+          />
+          <button className="rounded-2xl bg-white px-5 text-sm font-semibold text-black transition hover:bg-brand-cyan" type="submit">
+            Load
+          </button>
+        </form>
+      </div>
+
+      <div className="relative min-h-0 flex-1 bg-black">
+        <video
+          ref={videoRef}
+          className="h-full w-full bg-black object-contain"
+          playsInline
+          crossOrigin="anonymous"
+          muted={muted}
+          onPlay={() => setPlaying(true)}
+          onPause={() => setPlaying(false)}
+          onLoadedMetadata={(event) => setDuration(event.currentTarget.duration || 0)}
+          onTimeUpdate={(event) => setCurrentTime(event.currentTarget.currentTime || 0)}
+        />
+        {!loadedUrl && (
+          <div className="absolute inset-0 grid place-items-center bg-[radial-gradient(circle_at_center,rgba(103,232,249,0.10),transparent_34%)]">
+            <div className="max-w-md px-6 text-center">
+              <div className="mx-auto mb-6 grid h-24 w-24 place-items-center rounded-[28px] border border-white/10 bg-white/[0.055] shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_20px_70px_rgba(0,0,0,0.45)]">
+                <TvMinimalPlay className="h-11 w-11 text-white/82" strokeWidth={1.55} />
+              </div>
+              <p className="text-3xl font-semibold tracking-[-0.035em] text-white">Load an HLS playlist</p>
+              <p className="mt-3 text-sm leading-6 text-white/48">Paste an m3u8 link above to turn iFicam into a clean playlist player and recorder.</p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="border-t border-white/[0.075] bg-[#101114]/98 px-5 py-4">
+        <div className="mb-3 flex items-center gap-3">
+          <button
+            className="grid h-11 w-11 place-items-center rounded-full bg-white text-black transition hover:bg-brand-cyan disabled:opacity-40"
+            onClick={() => void togglePlay()}
+            disabled={!loadedUrl}
+            aria-label={playing ? 'Pause' : 'Play'}
+          >
+            {playing ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5 fill-current" />}
+          </button>
+          <button
+            className="grid h-11 w-11 place-items-center rounded-full border border-white/10 bg-white/[0.055] text-white/72 transition hover:bg-white/10 hover:text-white"
+            onClick={() => setMuted((value) => !value)}
+            aria-label={muted ? 'Unmute' : 'Mute'}
+          >
+            {muted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
+          </button>
+          <div className="min-w-0 flex-1">
+            <input
+              className="w-full accent-cyan-300"
+              type="range"
+              min={0}
+              max={duration || 0}
+              step={0.1}
+              value={Math.min(currentTime, duration || currentTime)}
+              onChange={seek}
+              disabled={!duration || !Number.isFinite(duration)}
+            />
+            <div className="mt-1 flex justify-between text-xs text-white/38">
+              <span>{time(currentTime)}</span>
+              <span>{duration && Number.isFinite(duration) ? time(duration) : 'Live'}</span>
+            </div>
+          </div>
+          <button
+            className={`h-11 rounded-full px-5 text-sm font-semibold transition disabled:opacity-45 ${
+              state === 'recording'
+                ? 'bg-red-400 text-black hover:bg-red-300'
+                : state === 'saving'
+                  ? 'bg-brand-cyan/80 text-black'
+                  : 'border border-white/12 bg-white/[0.065] text-white/80 hover:bg-white/12 hover:text-white'
+            }`}
+            onClick={() => state === 'recording' ? void stopHlsRecording() : void startHlsRecording()}
+            disabled={!loadedUrl || state === 'saving'}
+          >
+            {recordingText}
+          </button>
         </div>
       </div>
     </div>

@@ -62,11 +62,11 @@ const createWindow = (): void => {
           backgroundColor: '#000000',
           title: 'iFicam OBS Preview',
           autoHideMenuBar: true,
-          alwaysOnTop: true,
           webPreferences: {
             sandbox: true,
             contextIsolation: true,
             nodeIntegration: false,
+            backgroundThrottling: false,
           },
         },
       };

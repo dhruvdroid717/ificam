@@ -25,6 +25,8 @@ const MIME_CANDIDATES = [
   'video/webm',
 ];
 
+let finalizeQueue: Promise<unknown> = Promise.resolve();
+
 const pickMimeType = (): string => {
   for (const candidate of MIME_CANDIDATES) {
     if (MediaRecorder.isTypeSupported(candidate)) return candidate;
@@ -196,14 +198,19 @@ export const startRecording = async ({ recordingId, label, includeDeviceLabel, v
     recorder.onstop = () => {
       cleanup();
       pump
-        .then(() => window.ificam.recStop({
-          rotation: normalizedRotation,
-          flip,
-          resolution,
-          targetWidth: target?.width ?? null,
-          targetHeight: target?.height ?? null,
-          adjustments,
-        }, recordingId))
+        .then(() => {
+          const finalize = (): Promise<{ filePath: string }> => window.ificam.recStop({
+            rotation: normalizedRotation,
+            flip,
+            resolution,
+            targetWidth: target?.width ?? null,
+            targetHeight: target?.height ?? null,
+            adjustments,
+          }, recordingId);
+          const queued = finalizeQueue.then(finalize, finalize);
+          finalizeQueue = queued.catch(() => undefined);
+          return queued;
+        })
         .then(({ filePath }) => resolve(filePath))
         .catch(reject);
     };

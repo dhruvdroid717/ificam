@@ -12,6 +12,10 @@ const recordTimer = document.getElementById('recordTimer');
 const flipBtn = document.getElementById('flipBtn');
 const zoomButtons = Array.from(document.querySelectorAll('.zoom'));
 const focusRing = document.getElementById('focusRing');
+const phoneStats = document.getElementById('phoneStats');
+const resolutionValue = document.getElementById('resolutionValue');
+const latencyValue = document.getElementById('latencyValue');
+const miniAudioBars = Array.from(document.querySelectorAll('#miniAudio i'));
 
 const VIDEO_BITRATE = 8_000_000;
 const ZOOM_LEVELS = [0.5, 1, 2, 3];
@@ -30,6 +34,12 @@ let recording = false;
 let recordingStartedAt = 0;
 let recordingTimer = null;
 let currentZoom = 1;
+let statsTimer = null;
+let audioContext = null;
+let audioAnalyser = null;
+let audioData = null;
+let audioFrame = null;
+let savedStateTimer = null;
 
 const hashPin = new URLSearchParams(location.hash.slice(1)).get('pin');
 if (hashPin && /^\d{4}$/.test(hashPin)) {
@@ -81,27 +91,125 @@ function startRecordingTimer() {
 function stopRecordingTimer() {
   if (recordingTimer) clearInterval(recordingTimer);
   recordingTimer = null;
+}
+
+function resetRecordingTimer() {
+  stopRecordingTimer();
   recordingStartedAt = 0;
   recordTimer.textContent = '00:00';
   recordTimer.classList.add('hidden');
 }
 
 function setRecordingState(next) {
+  window.clearTimeout(savedStateTimer);
   recording = next;
   setRecordButtonText(recording ? 'Stop recording' : 'Start recording');
   recordBtn.classList.toggle('active', recording);
+  recordBtn.classList.remove('saving', 'saved');
+  recordBtn.disabled = false;
   if (recording) {
     startRecordingTimer();
     setStatus('REC - recording on PC', 'rec');
   } else {
-    stopRecordingTimer();
+    resetRecordingTimer();
     if (started && pc && pc.connectionState === 'connected') setStatus('Live - streaming to PC', 'live');
   }
+}
+
+function setSavingState() {
+  recording = false;
+  stopRecordingTimer();
+  recordBtn.disabled = true;
+  recordBtn.classList.remove('active', 'saved');
+  recordBtn.classList.add('saving');
+  setRecordButtonText('Saving video');
+  setStatus('Saving recording...', 'warn');
+}
+
+function setSavedState() {
+  recording = false;
+  stopRecordingTimer();
+  recordBtn.disabled = true;
+  recordBtn.classList.remove('active', 'saving');
+  recordBtn.classList.add('saved');
+  setRecordButtonText('Saved');
+  setStatus('Recording saved ✓', 'live');
+  window.clearTimeout(savedStateTimer);
+  savedStateTimer = window.setTimeout(() => {
+    recordBtn.classList.remove('saved');
+    recordBtn.disabled = false;
+    setRecordButtonText('Start recording');
+    resetRecordingTimer();
+    if (started && pc && pc.connectionState === 'connected') setStatus('Live - streaming to PC', 'live');
+  }, 1500);
 }
 
 function setRecordButtonText(text) {
   const label = recordBtn.querySelector('.record-label');
   if (label) label.textContent = text;
+}
+
+function updateResolutionValue() {
+  const track = getVideoTrack();
+  const settings = track && typeof track.getSettings === 'function' ? track.getSettings() : {};
+  const width = settings.width || preview.videoWidth;
+  const height = settings.height || preview.videoHeight;
+  resolutionValue.textContent = width && height ? `${width}x${height}` : '--';
+}
+
+async function updateConnectionStats() {
+  updateResolutionValue();
+  if (!pc || pc.connectionState !== 'connected') {
+    latencyValue.textContent = '--';
+    return;
+  }
+  try {
+    const report = await pc.getStats();
+    let rtt = null;
+    report.forEach((entry) => {
+      if (entry.type === 'candidate-pair' && (entry.nominated || entry.selected) && typeof entry.currentRoundTripTime === 'number') {
+        rtt = Math.round(entry.currentRoundTripTime * 1000);
+      }
+    });
+    latencyValue.textContent = rtt === null ? '--' : String(rtt);
+  } catch {
+    latencyValue.textContent = '--';
+  }
+}
+
+function startStats() {
+  phoneStats.classList.remove('hidden');
+  updateConnectionStats();
+  if (statsTimer) clearInterval(statsTimer);
+  statsTimer = setInterval(updateConnectionStats, 1000);
+}
+
+function startAudioMeter() {
+  const audioTrack = localStream && localStream.getAudioTracks()[0];
+  if (!audioTrack || audioAnalyser) return;
+  try {
+    const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+    audioContext = new AudioContextCtor();
+    audioAnalyser = audioContext.createAnalyser();
+    audioAnalyser.fftSize = 256;
+    audioData = new Uint8Array(audioAnalyser.frequencyBinCount);
+    audioContext.createMediaStreamSource(new MediaStream([audioTrack])).connect(audioAnalyser);
+  } catch {
+    return;
+  }
+
+  const paint = () => {
+    if (!audioAnalyser || !audioData) return;
+    audioAnalyser.getByteFrequencyData(audioData);
+    const level = audioData.reduce((sum, value) => sum + value, 0) / audioData.length / 255;
+    miniAudioBars.forEach((bar, index) => {
+      const active = level > (index + 1) * 0.08;
+      bar.style.height = `${7 + Math.min(22, level * 34 * (index + 1) * 0.42)}px`;
+      bar.style.background = active ? 'rgba(103, 232, 249, 0.9)' : 'rgba(255, 255, 255, 0.22)';
+    });
+    audioFrame = requestAnimationFrame(paint);
+  };
+  paint();
 }
 
 function connect() {
@@ -165,7 +273,8 @@ async function handleMessage(raw) {
       break;
     case 'cmd':
       if (message.action === 'record.started') setRecordingState(true);
-      if (message.action === 'record.stopped') setRecordingState(false);
+      if (message.action === 'record.saving') setSavingState();
+      if (message.action === 'record.stopped') setSavedState();
       break;
   }
 }
@@ -223,6 +332,9 @@ async function startCamera() {
   started = true;
   setStatus('Pairing...', 'warn');
   updateZoomButtons();
+  updateResolutionValue();
+  startStats();
+  startAudioMeter();
 
   connect();
 }
@@ -334,6 +446,7 @@ async function switchCamera() {
     preview.srcObject = localStream;
     currentZoom = 1;
     updateZoomButtons();
+    updateResolutionValue();
     sendPhoneState();
     setStatus(recording ? 'REC - camera switched' : 'Live - streaming to PC', recording ? 'rec' : 'live');
 
@@ -408,12 +521,19 @@ async function focusAt(event) {
 }
 
 recordBtn.addEventListener('click', () => {
-  send({ type: 'cmd', action: recording ? 'record.stop' : 'record.start' });
+  const stopping = recording;
+  send({ type: 'cmd', action: stopping ? 'record.stop' : 'record.start' });
   recordBtn.disabled = true;
-  setRecordButtonText(recording ? 'Stopping...' : 'Starting...');
+  if (stopping) {
+    setSavingState();
+  } else {
+    setRecordButtonText('Starting...');
+  }
   setTimeout(() => {
-    recordBtn.disabled = false;
-    setRecordButtonText(recording ? 'Stop recording' : 'Start recording');
+    if (!recordBtn.classList.contains('saving')) {
+      recordBtn.disabled = false;
+      setRecordButtonText(recording ? 'Stop recording' : 'Start recording');
+    }
   }, 1200);
 });
 
