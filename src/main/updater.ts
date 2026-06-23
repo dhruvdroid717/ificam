@@ -20,12 +20,12 @@ let downloadStarted = false;
 const friendlyUpdateError = (error: unknown): string => {
   const raw = error instanceof Error ? error.message : String(error);
   if (/YOUR_GITHUB_USERNAME|404|latest\.yml|app-update\.yml|No published versions|Cannot find/i.test(raw)) {
-    return 'Updates are not connected yet. Publish iFicam to GitHub Releases first.';
+    return 'The update channel is not ready yet. Please install the latest iFicam release from GitHub and try again later.';
   }
   if (/net::|ENOTFOUND|ECONN|ETIMEDOUT|EAI_AGAIN|offline|network/i.test(raw)) {
     return 'Could not reach the update server. Check your internet connection and try again.';
   }
-  return 'Could not check for updates right now. Please try again later.';
+  return 'Could not check for updates right now. Please try again in a few minutes.';
 };
 
 const notesToText = (notes: UpdateInfo['releaseNotes']): string => {

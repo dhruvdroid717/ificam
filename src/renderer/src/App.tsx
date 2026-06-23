@@ -460,7 +460,7 @@ function UpdateModal({
         : state.status === 'not-available'
           ? 'iFicam is up to date'
           : state.status === 'error'
-            ? 'Update check failed'
+            ? 'Update check unavailable'
             : 'Check for updates';
   const notes =
     state.status === 'available'
@@ -498,7 +498,7 @@ function UpdateModal({
               {state.status === 'not-available'
                 ? 'No action is needed right now.'
                 : state.status === 'error'
-                  ? 'The app could not reach a valid update feed.'
+                  ? 'iFicam could not confirm the latest release right now.'
                   : 'Install the latest release from GitHub when you are ready.'}
             </p>
           </div>
@@ -508,7 +508,7 @@ function UpdateModal({
         </div>
 
         <div className="mt-5 max-h-44 overflow-y-auto rounded-2xl border border-white/8 bg-black/24 p-4 text-sm leading-6 text-white/64">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-white/36">Changelog</p>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-white/36">{state.status === 'error' ? 'Status' : 'Changelog'}</p>
           <pre className="whitespace-pre-wrap font-sans">{notes}</pre>
         </div>
 
@@ -524,7 +524,7 @@ function UpdateModal({
           </div>
         )}
 
-        {state.status === 'error' && <p className="mt-4 rounded-2xl border border-amber-300/20 bg-amber-300/10 px-3 py-2 text-sm text-amber-100">Update service is not ready yet. No technical details are shown to users.</p>}
+        {state.status === 'error' && <p className="mt-4 rounded-2xl border border-amber-300/20 bg-amber-300/10 px-3 py-2 text-sm text-amber-100">You can keep using iFicam normally. Try again later or download the newest installer from GitHub Releases.</p>}
 
         <div className="mt-5 flex justify-end gap-3">
           <button className="rounded-2xl border border-white/10 bg-white/[0.055] px-4 py-2.5 text-sm font-medium text-white/62 transition hover:bg-white/10 hover:text-white" onClick={onClose}>
