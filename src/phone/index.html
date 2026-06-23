@@ -34,7 +34,11 @@
 
       <div class="phone-controls hidden" id="phoneControls">
         <div class="row">
-          <button id="recordBtn" class="record"><span class="record-dot"></span><span>Start recording</span></button>
+          <button id="recordBtn" class="record">
+            <span class="record-dot"></span>
+            <span class="record-label">Start recording</span>
+            <span id="recordTimer" class="record-timer hidden">00:00</span>
+          </button>
           <button id="flipBtn" class="secondary" aria-label="Flip camera"><span class="button-icon">Flip</span></button>
         </div>
         <div class="zoom-row" id="zoomRow">

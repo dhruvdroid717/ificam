@@ -304,6 +304,20 @@ button {
   box-shadow: 0 16px 38px rgba(239, 68, 68, 0.32);
 }
 
+.record-label {
+  line-height: 1;
+}
+
+.record-timer {
+  min-width: 4.2ch;
+  border-left: 1px solid rgba(255, 255, 255, 0.32);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.92rem;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  padding-left: 9px;
+}
+
 .record.active {
   color: #210306;
   background: linear-gradient(180deg, #fecaca, #fb7185);

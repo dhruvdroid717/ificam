@@ -8,6 +8,7 @@ const pinField = document.getElementById('pinField');
 const pinInput = document.getElementById('pinInput');
 const phoneControls = document.getElementById('phoneControls');
 const recordBtn = document.getElementById('recordBtn');
+const recordTimer = document.getElementById('recordTimer');
 const flipBtn = document.getElementById('flipBtn');
 const zoomButtons = Array.from(document.querySelectorAll('.zoom'));
 const focusRing = document.getElementById('focusRing');
@@ -26,6 +27,8 @@ let reconnectTimer = null;
 let pin = '';
 let facingMode = 'environment';
 let recording = false;
+let recordingStartedAt = 0;
+let recordingTimer = null;
 let currentZoom = 1;
 
 const hashPin = new URLSearchParams(location.hash.slice(1)).get('pin');
@@ -53,15 +56,52 @@ function sendPhoneState() {
   send({ type: 'phone-state', orientation: orientation(), facing: facingMode, zoom: currentZoom });
 }
 
+function formatElapsed(seconds) {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
+function updateRecordingTimer() {
+  if (!recordingStartedAt) {
+    recordTimer.textContent = '00:00';
+    return;
+  }
+  recordTimer.textContent = formatElapsed(Math.floor((Date.now() - recordingStartedAt) / 1000));
+}
+
+function startRecordingTimer() {
+  recordingStartedAt = Date.now();
+  updateRecordingTimer();
+  recordTimer.classList.remove('hidden');
+  if (recordingTimer) clearInterval(recordingTimer);
+  recordingTimer = setInterval(updateRecordingTimer, 500);
+}
+
+function stopRecordingTimer() {
+  if (recordingTimer) clearInterval(recordingTimer);
+  recordingTimer = null;
+  recordingStartedAt = 0;
+  recordTimer.textContent = '00:00';
+  recordTimer.classList.add('hidden');
+}
+
 function setRecordingState(next) {
   recording = next;
   setRecordButtonText(recording ? 'Stop recording' : 'Start recording');
   recordBtn.classList.toggle('active', recording);
-  if (recording) setStatus('REC - recording on PC', 'rec');
+  if (recording) {
+    startRecordingTimer();
+    setStatus('REC - recording on PC', 'rec');
+  } else {
+    stopRecordingTimer();
+    if (started && pc && pc.connectionState === 'connected') setStatus('Live - streaming to PC', 'live');
+  }
 }
 
 function setRecordButtonText(text) {
-  recordBtn.innerHTML = `<span class="record-dot"></span><span>${text}</span>`;
+  const label = recordBtn.querySelector('.record-label');
+  if (label) label.textContent = text;
 }
 
 function connect() {
@@ -139,6 +179,18 @@ async function getCameraStream() {
       frameRate: { ideal: 30 },
     },
     audio: true,
+  });
+}
+
+async function getVideoStream() {
+  return navigator.mediaDevices.getUserMedia({
+    video: {
+      facingMode,
+      width: { ideal: 1920 },
+      height: { ideal: 1080 },
+      frameRate: { ideal: 30 },
+    },
+    audio: false,
   });
 }
 
@@ -260,24 +312,38 @@ async function tuneVideoSender(peer) {
 
 async function switchCamera() {
   if (!started) return;
+  const previousFacingMode = facingMode;
   facingMode = facingMode === 'environment' ? 'user' : 'environment';
   setStatus('Switching camera...', 'warn');
   try {
-    const oldStream = localStream;
-    const nextStream = await getCameraStream();
-    localStream = nextStream;
-    preview.srcObject = nextStream;
-    oldStream.getTracks().forEach((track) => track.stop());
+    const oldVideoTrack = getVideoTrack();
+    const nextVideoStream = await getVideoStream();
+    const nextVideoTrack = nextVideoStream.getVideoTracks()[0];
+    if (!nextVideoTrack) throw new Error('No video track returned.');
+
+    nextVideoTrack.contentHint = 'motion';
+    if (videoSender && pc && pc.connectionState !== 'closed') {
+      await videoSender.replaceTrack(nextVideoTrack);
+    }
+
+    if (oldVideoTrack) {
+      localStream.removeTrack(oldVideoTrack);
+      oldVideoTrack.stop();
+    }
+    localStream.addTrack(nextVideoTrack);
+    preview.srcObject = localStream;
     currentZoom = 1;
     updateZoomButtons();
     sendPhoneState();
-    if (pcPresent) {
+    setStatus(recording ? 'REC - camera switched' : 'Live - streaming to PC', recording ? 'rec' : 'live');
+
+    if (pcPresent && !videoSender) {
       if (pc) pc.close();
       pc = null;
       void createOffer();
     }
   } catch {
-    facingMode = facingMode === 'environment' ? 'user' : 'environment';
+    facingMode = previousFacingMode;
     setStatus('Camera switch failed', 'error');
   }
 }
