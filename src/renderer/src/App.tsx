@@ -41,6 +41,15 @@ const videoFilter = (adjustments: VideoAdjustments): string => {
   const saturation = adjustments.saturation + adjustments.vibrance * 0.8;
   return `brightness(${brightness}%) contrast(${adjustments.contrast}%) saturate(${saturation}%)`;
 };
+
+const recordingErrorMessage = (error: unknown): string => {
+  const message = error instanceof Error ? error.message : String(error);
+  if (/remote method|spawn|ffmpeg|encoder|rec-stop|Program Files|app\.asar/i.test(message)) {
+    return 'Recording could not be saved. Please reinstall iFicam if this keeps happening.';
+  }
+  return message || 'Recording failed to save.';
+};
+
 interface Feed {
   id: string;
   stream: MediaStream;
@@ -136,7 +145,7 @@ export default function App(): JSX.Element {
       setSavedFile(filePath);
       receiverRef.current?.sendControl({ type: 'cmd', action: 'record.stopped' });
     } catch (error) {
-      setRecError(error instanceof Error ? error.message : 'Recording failed to save.');
+      setRecError(recordingErrorMessage(error));
       receiverRef.current?.sendControl({ type: 'cmd', action: 'record.stopped' });
     } finally {
       setRecorder('idle');

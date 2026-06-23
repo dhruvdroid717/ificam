@@ -1,6 +1,6 @@
 ﻿import { app } from 'electron';
 import { createWriteStream, type WriteStream } from 'node:fs';
-import { mkdir, rm } from 'node:fs/promises';
+import { access, mkdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { spawn } from 'node:child_process';
 import ffmpegPath from 'ffmpeg-static';
@@ -32,6 +32,24 @@ let tempPath: string | null = null;
 let finalPath: string | null = null;
 
 const defaultOutputDir = (): string => join(app.getPath('videos'), 'iFicam');
+
+const resolveFfmpegPath = async (): Promise<string> => {
+  if (!ffmpegPath) {
+    throw new Error('Bundled ffmpeg binary was not found.');
+  }
+
+  const executable = app.isPackaged && ffmpegPath.includes('app.asar')
+    ? ffmpegPath.replace('app.asar', 'app.asar.unpacked')
+    : ffmpegPath;
+
+  try {
+    await access(executable);
+  } catch {
+    throw new Error('The bundled video encoder is missing. Please reinstall iFicam and try again.');
+  }
+
+  return executable;
+};
 
 const fileStamp = (): string => {
   const d = new Date();
@@ -79,23 +97,28 @@ export const stopRecording = async (options: StopRecordingOptions = {}): Promise
   return { filePath: output };
 };
 
-const runFfmpeg = (args: string[]): Promise<void> =>
-  new Promise((resolve, reject) => {
-    if (!ffmpegPath) {
-      reject(new Error('Bundled ffmpeg binary was not found.'));
-      return;
-    }
-    const proc = spawn(ffmpegPath, args);
+const runFfmpeg = async (args: string[]): Promise<void> => {
+  const executable = await resolveFfmpegPath();
+
+  return new Promise((resolve, reject) => {
+    const proc = spawn(executable, args, { windowsHide: true });
     let stderr = '';
     proc.stderr.on('data', (d) => {
       stderr += d.toString();
     });
-    proc.on('error', reject);
+    proc.on('error', (error) => {
+      console.error('iFicam ffmpeg spawn failed:', error);
+      reject(new Error('Could not start the video encoder. Please reinstall iFicam and try again.'));
+    });
     proc.on('close', (code) => {
       if (code === 0) resolve();
-      else reject(new Error(`ffmpeg exited ${code}: ${stderr.slice(-1000)}`));
+      else {
+        console.error('iFicam ffmpeg conversion failed:', stderr);
+        reject(new Error('Recording could not be converted to MP4. Please try recording again.'));
+      }
     });
   });
+};
 
 const clamp = (value: number, min: number, max: number): number => Math.min(max, Math.max(min, value));
 
