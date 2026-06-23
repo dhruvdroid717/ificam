@@ -1,6 +1,6 @@
 {
   "name": "ificam",
-  "version": "21.6.28",
+  "version": "21.6.29",
   "description": "iFicam by @Ungyani - turn a phone into a wireless HD webcam and recorder for Windows.",
   "main": "out/main/index.js",
   "author": "Ungyani",
@@ -14,10 +14,11 @@
     "dev": "electron-vite dev",
     "preview": "electron-vite preview",
     "prepare:assets": "node scripts/prepare-build-assets.mjs",
+    "prepare:release-assets": "node scripts/prepare-release-assets.mjs",
     "build": "npm run prepare:assets && tsc --noEmit && electron-vite build",
     "build:win": "npm run build && set CSC_IDENTITY_AUTO_DISCOVERY=false&& electron-builder --win --x64",
     "build:all": "npm run build && set CSC_IDENTITY_AUTO_DISCOVERY=false&& electron-builder --win --x64 --ia32",
-    "release": "npm version patch && set CSC_IDENTITY_AUTO_DISCOVERY=false&& npm run build:all -- --publish always"
+    "release": "npm version patch && set CSC_IDENTITY_AUTO_DISCOVERY=false&& npm run build:all -- --publish never && npm run prepare:release-assets"
   },
   "dependencies": {
     "electron-updater": "^6.8.9",

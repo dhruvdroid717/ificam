@@ -26,29 +26,29 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build and publish installers
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npm run build:all -- --publish always
+      - name: Build installers
+        run: npm run build:all -- --publish never
 
-      - name: Keep release assets tidy
-        continue-on-error: true
+      - name: Prepare update metadata
+        run: npm run prepare:release-assets
+
+      - name: Publish release assets
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           $version = node -p "require('./package.json').version"
           $tag = $env:GITHUB_REF_NAME
-          $assetsToRemove = @(
-            "iFicam-Setup-$version-x64.exe",
-            "iFicam-Setup-$version-x64.exe.blockmap",
-            "iFicam-Setup-$version-ia32.exe",
-            "iFicam-Setup-$version-ia32.exe.blockmap"
-          )
 
-          foreach ($asset in $assetsToRemove) {
-            gh release delete-asset $tag $asset --yes 2>$null
-            if ($LASTEXITCODE -ne 0) {
-              Write-Host "Asset not present or already removed: $asset"
-            }
+          gh release view $tag 1>$null 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            gh release edit $tag --title $version --notes "iFicam $version" --latest
+          } else {
+            gh release create $tag --title $version --notes "iFicam $version" --latest
           }
+
+          gh release upload $tag `
+            "release/iFicam-Setup-$version.exe" `
+            "release/iFicam-Setup-$version.exe.blockmap" `
+            "release/latest.yml" `
+            --clobber
