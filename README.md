@@ -30,7 +30,7 @@ npm run dist
 ## Milestone 2 HTTPS Test
 
 1. Run the app with `npm.cmd run dev`.
-2. Copy the LAN URL shown in the Setup panel, for example `https://192.168.1.42:8443`.
+2. Copy the LAN URL shown in the Setup panel, for example `https://19x.xxx.xxx.xx`.
 3. On an iPhone connected to the same WiFi, open the URL in Safari.
 4. For the quick path, tap **Show Details**, then **visit this website**.
 5. Confirm the page says **Secure iPhone page is working**.
